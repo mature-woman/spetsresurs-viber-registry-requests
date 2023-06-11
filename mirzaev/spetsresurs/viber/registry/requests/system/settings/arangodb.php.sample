@@ -1,0 +1,8 @@
+<?php
+
+return [
+    'endpoint' => 'unix:///var/run/arangodb3/arango.sock',
+    'database' => '',
+    'name' => '',
+    'password' => ''
+];

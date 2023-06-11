@@ -1,8 +1,6 @@
-# Telegram chat-robot implementing a register of people
+# Viber chat-robot
 
-⚠️ Documentation and code commenting not added
+Sending requests from [mirzaev/spetsresurs-google_sheets-parser](https://git.mirzaev.sexy/mirzaev/spetsresurs-google_sheets-parser) to [mirzaev/arangodb](https://git.mirzaev.sexy/mirzaev/arangodb) and vice versa
 
-Simple, asynchronous, scalable, easy to update
-The robot sends messages in Russian, but they can easily be replaced with English
+😼 Developed in 1 days for 100000 rubles ($1200)
 
-😼 Developed lazily in 2 days

@@ -1,1 +1,0 @@
-sudo -u www-data php mirzaev/telegram/registry/people/system/public/robot.php

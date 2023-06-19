@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "3fd69eb362accef047acf98bf5aa1405",
+    "content-hash": "436a21927a120a646fa0e2f127f72421",
     "packages": [
         {
             "name": "bogdaan/viber-bot-php",

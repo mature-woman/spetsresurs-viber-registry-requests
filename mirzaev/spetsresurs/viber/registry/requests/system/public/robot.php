@@ -33,7 +33,7 @@ $botSender = new Sender([
 ]);
 
 $log = new Logger('bot');
-$log->pushHandler(new StreamHandler('../bot.log'));
+$log->pushHandler(new StreamHandler('../logs/robot.txt'));
 
 /**
  * Авторизация
@@ -93,10 +93,10 @@ function registration(string $id, string $number): bool
 				document::write($arangodb->session,	'viber', ['id' => $id, 'status' => 'inactive', 'number' => $number])
 			)
 		)) return false;
-		else  throw new exception('Не удалось создать аккаунт или записать номер в существующий');
 
 		// Инициализация ребра: workers -> viber
-		if (($worker = collection::search(
+		if (collection::init($arangodb->session, 'workers')
+			&& ($worker = collection::search(
 				$arangodb->session,
 				sprintf(
 					"FOR d IN workers FILTER d.phone == '%d' RETURN d",
@@ -200,6 +200,12 @@ try {
 				// Запись о том, что задание подтверждено (в будущем здесь будет отправка на потдверждение модераторам)
 				$work->confirmed = 'да';
 
+				// Запись о том, что необходимо перенести изменения в Google Sheets
+				$work->transfer_to_sheets = 'да';
+
+				// Запись идентификатора Google Sheets нового сотрудника
+				$work->worker = $worker->id;
+
 				if (document::update($arangodb->session, $work)) {
 					// Записано обновление в базу данных
 
@@ -284,7 +290,7 @@ try {
 							(new Text())
 								->setSender($botSender)
 								->setReceiver($id)
-								->setText("**#{$request->getKey()}**\n\n$request->date ($request->start - $request->end)\n**Работа:** \"$request->work\"\n\n**Город:** $market->city\n**Адрес:** $market->address")
+								->setText("**#{$request->getKey()}**\n\n" . $request->date['converted'] . " (" . $request->start['converted'] . " - " . $request->end['converted'] . ")\n**Работа:** \"$request->work\"\n\n**Город:** $market->city\n**Адрес:** $market->address")
 						);
 
 						// Запись выбора заявки в клавиатуру
@@ -323,7 +329,7 @@ try {
 					(new Text())
 						->setSender($botSender)
 						->setReceiver($id)
-						->setText('⛔️ **Вы не авторизованы**')
+						->setText('⛔ **Вы не авторизованы**')
 				);
 			}
 		})
@@ -358,7 +364,7 @@ try {
 					(new Text())
 						->setSender($botSender)
 						->setReceiver($id)
-						->setText('⛔️ **Вы не авторизованы**')
+						->setText('⛔ **Вы не авторизованы**')
 				);
 			}
 		})
@@ -393,7 +399,7 @@ try {
 					(new Text())
 						->setSender($botSender)
 						->setReceiver($id)
-						->setText('⛔️ **Вы не авторизованы**')
+						->setText('⛔ **Вы не авторизованы**')
 				);
 			}
 		})
@@ -428,7 +434,7 @@ try {
 					(new Text())
 						->setSender($botSender)
 						->setReceiver($id)
-						->setText('⛔️ **Вы не авторизованы**')
+						->setText('⛔ **Вы не авторизованы**')
 				);
 			}
 		})
@@ -438,6 +444,7 @@ try {
 			$id = $event->getSender()->getId();
 
 			if (registration($id, $event->getMessage()->getPhoneNumber())) {
+				// Зарегистрирован
 
 				$bot->getClient()->sendMessage(
 					(new Text())
@@ -463,9 +470,18 @@ try {
 						(new Text())
 							->setSender($botSender)
 							->setReceiver($id)
-							->setText('⛔️ **Вы не авторизованы**')
+							->setText('⛔ **Вы не авторизованы**')
 					);
 				}
+			} else {
+				// Не зарегистрирован
+
+				$bot->getClient()->sendMessage(
+					(new Text())
+						->setSender($botSender)
+						->setReceiver($id)
+						->setText('⛔ **Вы не авторизованы**')
+				);
 			}
 		})
 		->run();

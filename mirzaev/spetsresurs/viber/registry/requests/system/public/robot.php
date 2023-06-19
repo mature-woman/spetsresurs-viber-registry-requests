@@ -95,7 +95,8 @@ function registration(string $id, string $number): bool
 		)) return false;
 
 		// Инициализация ребра: workers -> viber
-		if (collection::init($arangodb->session, 'workers')
+		if (
+			collection::init($arangodb->session, 'workers')
 			&& ($worker = collection::search(
 				$arangodb->session,
 				sprintf(
@@ -142,7 +143,7 @@ function generateMenuKeyboard(): Keyboard
 			(new Button())
 				->setBgColor('#97d446')
 				->setActionType('reply')
-				->setActionBody('btn-search')
+				->setActionBody('btn-search-1')
 				->setText('🔍 Активные заявки')
 		]);
 }
@@ -161,16 +162,31 @@ function generateNumberKeyboard(): Keyboard
 		]);
 }
 
-function requests(int $amount = 5): Cursor
+function generateEmojis(): string
+{
+	return '&#' . hexdec(trim(array_rand(file(__DIR__ . '/../emojis.txt')))) . ';';
+}
+
+function requests(int $amount = 5, int $page = 1): Cursor
 {
 	global $arangodb;
+
+	// Фильтрация номера страницы
+	if ($page < 1) $page = 1;
+
+	// Инициализация номера страницы для вычислний
+	--$page;
+
+	// Инициализация сдвига
+	$offset = $page === 0 ? 0 : $page * $amount;
 
 	return (new _statement(
 		$arangodb->session,
 		[
 			'query' => sprintf(
-				"FOR d IN works FILTER d.confirmed != 'да' LIMIT %d RETURN d",
-				$amount
+				"FOR d IN works FILTER d.confirmed != 'да' SORT d.created DESC LIMIT %d, %d RETURN d",
+				$offset,
+				$amount + $offset
 			),
 			"batchSize" => 1000,
 			"sanitize"  => true
@@ -182,7 +198,7 @@ try {
 	$bot = new Bot(['token' => require('../settings/key.php')]);
 
 	$bot
-		->onText('|btn-request-choose-*|s', function ($event) use ($bot, $botSender, $log) {
+		->onText('|btn-request-choose-*|s', function ($event) use ($bot, $botSender) {
 			global $arangodb;
 
 			$id = $event->getSender()->getId();
@@ -210,13 +226,12 @@ try {
 					// Записано обновление в базу данных
 
 					if (collection::search(
-							$arangodb->session,
-							sprintf(
-								"FOR d IN readinesses FILTER d._id == '%s' RETURN d",
-								document::write($arangodb->session, 'readinesses', ['_from' => $worker->getId(), '_to' => $work->getId()])
-							)
+						$arangodb->session,
+						sprintf(
+							"FOR d IN readinesses FILTER d._id == '%s' RETURN d",
+							document::write($arangodb->session, 'readinesses', ['_from' => $worker->getId(), '_to' => $work->getId()])
 						)
-					) {
+					)) {
 						// Записано ребро: worker -> work (принятие заявки)
 
 						$bot->getClient()->sendMessage(
@@ -250,19 +265,31 @@ try {
 				);
 			}
 		})
-		->onText('|btn-search|s', function ($event) use ($bot, $botSender) {
+		->onText('|btn-search-*|s', function ($event) use ($bot, $botSender) {
 			global $arangodb;
+
+			// Инициализация номера страницы
+			preg_match('/btn-search-(\d+)/', $event->getMessage()->getText(), $matches);
+			$page = $matches[1] ?? 1;
 
 			$id = $event->getSender()->getId();
 
 			if (($worker = authorization($id)) instanceof _document) {
 				// Авторизован
 
-				$keyboard = [];
+				// Поиск заявок из базы данных
+				$requests = requests(6, $page);
 
-				$requests = requests(5);
+				// Подсчёт количества прочитанных заявок из базы данных
+				$count = $requests->getCount();
 
-				if ($requests->getCount() < 1) {
+				// Проверка существования избытка
+				$excess = $count === 6;
+
+				// Обрезка заявок до размера страницы
+				$requests = array_slice($requests->getAll(), 0, 5);
+
+				if ($count === 0) {
 					$bot->getClient()->sendMessage(
 						(new Text())
 							->setSender($botSender)
@@ -272,6 +299,26 @@ try {
 
 					return;
 				}
+
+				// Инициализация буфера клавиатуры для ответа
+				$keyboard = [];
+
+				// Генерация кнопки: "Следующая страница"
+				if ($excess) $keyboard[] = (new Button())
+					->setBgColor('#dce537')
+					->setTextSize('large')
+					->setActionType('reply')
+					->setActionBody('btn-search-' . $page + 1)
+					->setText('Следующая страница');
+
+				// Генерация кнопки: "Предыдущая страница"
+				if ($page > 1) $keyboard[] =
+					(new Button())
+					->setBgColor('#dce537')
+					->setTextSize('large')
+					->setActionType('reply')
+					->setActionBody('btn-search-' . $page - 1)
+					->setText('Предыдущая страница');
 
 				foreach ($requests as $request) {
 					// Перебор найденных заявок
@@ -285,6 +332,9 @@ try {
 					)) instanceof _document) {
 						// Найден магазин	
 
+						// Генерация эмодзи
+						/* $emoji = generateEmojis(); */
+
 						// Отправка сообщения с данной заявки
 						$bot->getClient()->sendMessage(
 							(new Text())
@@ -296,20 +346,19 @@ try {
 						// Запись выбора заявки в клавиатуру
 						$keyboard[] = (new Button())
 							->setBgColor(sprintf("#%02x%02x%02x", mt_rand(0, 255), mt_rand(0, 255), mt_rand(0, 255)))
-							->setTextSize('small')
+							->setTextSize('large')
 							->setActionType('reply')
 							->setActionBody("btn-request-choose-{$request->getKey()}")
 							->setText("#{$request->getKey()}");
 					}
 				}
 
-				$bot->getClient()->sendMessage(
-					(new Text())
+				$bot->getClient()->sendMessage((new Text())
 						->setSender($botSender)
 						->setReceiver($id)
 						->setMinApiVersion(3)
 						->setText("🔍 Выберите заявку")
-						->setKeyboard((new Keyboard())->setButtons($keyboard ?? []))
+						->setKeyboard((new Keyboard())->setButtons($keyboard))
 				);
 			} else if ($worker === null) {
 				// Не подключен
@@ -440,7 +489,7 @@ try {
 		})
 		->on(function ($event) {
 			return ($event instanceof Message && $event->getMessage() instanceof Contact);
-		}, function ($event) use ($bot, $botSender, $log) {
+		}, function ($event) use ($bot, $botSender) {
 			$id = $event->getSender()->getId();
 
 			if (registration($id, $event->getMessage()->getPhoneNumber())) {

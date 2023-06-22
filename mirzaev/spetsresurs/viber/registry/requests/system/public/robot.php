@@ -13,7 +13,6 @@ use ArangoDBClient\Document as _document,
 // Фреймворк для Viber API
 use Viber\Bot,
 	Viber\Api\Sender,
-	Viber\Api\Event,
 	Viber\Api\Keyboard,
 	Viber\Api\Keyboard\Button,
 	Viber\Api\Message\Contact,
@@ -184,7 +183,7 @@ function requests(int $amount = 5, int $page = 1): Cursor
 		$arangodb->session,
 		[
 			'query' => sprintf(
-				"FOR d IN works FILTER d.confirmed != 'да' SORT d.created DESC LIMIT %d, %d RETURN d",
+				"FOR d IN works FILTER d.worker == null && d.confirmed != 'да' SORT d.created DESC LIMIT %d, %d RETURN d",
 				$offset,
 				$amount + $offset
 			),
@@ -284,7 +283,7 @@ try {
 				$count = $requests->getCount();
 
 				// Проверка существования избытка
-				$excess = $count === 6;
+				$excess = $count % 6 === 0;
 
 				// Обрезка заявок до размера страницы
 				$requests = array_slice($requests->getAll(), 0, 5);

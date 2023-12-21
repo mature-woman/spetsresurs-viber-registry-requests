@@ -183,7 +183,9 @@ function requests(int $amount = 5, int $page = 1): Cursor
 		$arangodb->session,
 		[
 			'query' => sprintf(
-				"FOR d IN works FILTER d.worker == null && d.confirmed != 'да' SORT d.created DESC LIMIT %d, %d RETURN d",
+				"FOR d IN works FILTER d.date >= '%s' && d.date <= '%s' && d.worker == '' && d.confirmed != 'да' SORT d.created DESC LIMIT %d, %d RETURN d",
+				(new DateTime('now'))->setTime(7, 0)->format('d.m.Y'),
+				(new DateTime('tomorrow'))->setTime(7, 0)->format('d.m.Y'),
 				$offset,
 				$amount + $offset
 			),
@@ -339,7 +341,7 @@ try {
 							(new Text())
 								->setSender($botSender)
 								->setReceiver($id)
-								->setText("**#{$request->getKey()}**\n\n" . $request->date['converted'] . " (" . $request->start['converted'] . " - " . $request->end['converted'] . ")\n**Работа:** \"$request->work\"\n\n**Город:** $market->city\n**Адрес:** $market->address")
+								->setText("**#{$request->getKey()}**\n\n" . ($request->date['converted'] ?? $request->date) . " (" . ($request->start['converted'] ?? $request->start) . " - " . ($request->end['converted'] ?? $request->end) . ")\n**Работа:** \"$request->work\"\n\n**Город:** $market->city\n**Адрес:** $market->address")
 						);
 
 						// Запись выбора заявки в клавиатуру
